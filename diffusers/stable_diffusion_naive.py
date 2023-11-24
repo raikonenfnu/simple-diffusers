@@ -36,7 +36,7 @@ if __name__ == "__main__":
     width = 512                         # default width of Stable Diffusion
     num_inference_steps = 100           # Number of denoising steps
     guidance_scale = 7.5                # Scale for classifier-free guidance
-    generator = torch.manual_seed(0)    # Seed generator to create the inital latent noise
+    generator = torch.manual_seed(1024)    # Seed generator to create the inital latent noise
     batch_size = len(prompt)
 
     # Conditional text embeddings from prompt, this will be used to condition
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     with torch.no_grad():
         image = vae.decode(latents).sample
 
-
+    # Saving image generated.
     image = (image / 2 + 0.5).clamp(0, 1)
     image = image.detach().cpu().permute(0, 2, 3, 1).numpy()
     images = (image * 255).round().astype("uint8")
