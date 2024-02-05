@@ -36,6 +36,35 @@ parser.add_argument(
     help="Device to run models on.",
     default="cpu",
 )
+parser.add_argument(
+    "--batch_size",
+    type=int,
+    default=1,
+    help="number of prompts to be decoded parallely.",
+)
+
+
+PROMPT_REQUESTS = \
+[
+    "How do I open a can of beans?",
+    "How do I open a can of soup?",
+    "How do I open a can of strawberry jam?",
+    "How do I open a can of raspberry jam?",
+    "What's the tallest building in Paris?",
+    "What's the most populous nation on Earth?",
+    "What's the most populous nation on Mars?",
+    "What do the Mole People actually want and how can we best appease them?",
+    "Why is the sky blue?",
+    "Where is Waldo?",
+    "Who is Waldo?",
+    "Why is Waldo?",
+    "Is it legal to base jump off the Eiffel Tower?",
+    "Is it legal to base jump into a volcano?",
+    "Why are cats better than dogs?",
+    "Why is the Hulk so angry all the time?",
+    "How do I build a time machine?",
+    "Is it legal to grow your own catnip?"
+]
 
 def append_user_prompt(history, input_prompt):
     user_prompt = f"{B_INST} {input_prompt} {E_INST}"
@@ -47,10 +76,11 @@ def append_bot_prompt(history, input_prompt):
     history += user_prompt
     return history
 
-def chat(hf_model_name,
-         hf_auth_token,
-         max_num_tokens,
-         device):
+def parallel_decode(hf_model_name,
+                    hf_auth_token,
+                    max_num_tokens,
+                    device,
+                    batch_size):
     tokenizer = AutoTokenizer.from_pretrained(
         hf_model_name,
         use_fast=False,
@@ -61,11 +91,13 @@ def chat(hf_model_name,
                     tokenizer.eos_token_id,
                     device=device,
                     max_num_tokens=max_num_tokens)
-    prompt = DEFAULT_CHAT_SYS_PROMPT
-    while True:
-        user_prompt = input("User prompt: ")
-        prompt = append_user_prompt(prompt, user_prompt)
-        initial_input = tokenizer(prompt, return_tensors="pt")
+    # Sort S.T the padding within a batch will be minimal.
+    init_prompt = DEFAULT_CHAT_SYS_PROMPT
+    sorted_prompt_requests = sorted(PROMPT_REQUESTS, key = len)
+    formatted_prompt_requests = [append_user_prompt(init_prompt, prompt_req) for prompt_req in sorted_prompt_requests]
+    batched_prompt_requests = [formatted_prompt_requests[i:i + batch_size] for i in range(0, len(formatted_prompt_requests), batch_size)]
+    for batch_prompt_req_iter in batched_prompt_requests:
+        initial_input = tokenizer(batch_prompt_req_iter, return_tensors="pt")
         example_input_id = initial_input.input_ids
         result = llm.generate(example_input_id)
         bot_response = tokenizer.decode(result, skip_special_tokens=True)
@@ -74,4 +106,4 @@ def chat(hf_model_name,
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    chat(args.hf_model_name, args.hf_auth_token, args.max_num_tokens, args.device)
+    parallel_decode(args.hf_model_name, args.hf_auth_token, args.max_num_tokens, args.device, args.batch_size)
